@@ -174,9 +174,13 @@
 
         <div>
           <h3 style="font-size:18px; margin-bottom:14px;">¿Vas a entrenar esta semana?</h3>
-          <div style="display:flex; gap:14px; flex-wrap:wrap;">
-            <button id="confLunes" onclick="confirmarDia('Lunes')" style="padding:14px 22px; background:var(--turf); border:none; color:var(--pitch); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">Confirmo Lunes <span id="fechaBtnLunes"></span> 20:30</button>
-            <button id="confMiercoles" onclick="confirmarDia('Miércoles')" style="padding:14px 22px; background:var(--turf); border:none; color:var(--pitch); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">Confirmo Miércoles <span id="fechaBtnMiercoles"></span> 21:30</button>
+          <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+            <button id="confLunes" onclick="confirmarDia('Lunes','confirmado')" style="padding:14px 22px; background:var(--turf); border:none; color:var(--pitch); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">Confirmo Lunes <span id="fechaBtnLunes"></span> 20:30</button>
+            <button id="noLunes" onclick="confirmarDia('Lunes','no_puede')" style="padding:14px 22px; background:transparent; border:1px solid var(--turf-light); color:var(--turf-light); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">No puedo Lunes</button>
+          </div>
+          <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+            <button id="confMiercoles" onclick="confirmarDia('Miércoles','confirmado')" style="padding:14px 22px; background:var(--turf); border:none; color:var(--pitch); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">Confirmo Miércoles <span id="fechaBtnMiercoles"></span> 21:30</button>
+            <button id="noMiercoles" onclick="confirmarDia('Miércoles','no_puede')" style="padding:14px 22px; background:transparent; border:1px solid var(--turf-light); color:var(--turf-light); font-weight:700; text-transform:uppercase; font-size:13px; cursor:pointer; border-radius:2px;">No puedo Miércoles</button>
           </div>
         </div>
       </div>
@@ -216,8 +220,10 @@
     <div class="admin-note">Quiénes confirmaron que van a entrenar esta semana.</div>
     <h3 style="font-size:16px; margin-bottom:10px; color:var(--turf-light);">Lunes <span id="fechaLunes"></span> · 20:30 hrs — <span id="countLunes">0</span> confirmados</h3>
     <table id="tablaConfLunes"><tr><th>Alumno</th></tr></table>
+    <table id="tablaNoLunes" style="margin-top:8px;"><tr><th>No puede — Lunes</th></tr></table>
     <h3 style="font-size:16px; margin:24px 0 10px; color:var(--turf-light);">Miércoles <span id="fechaMiercoles"></span> · 21:30 hrs — <span id="countMiercoles">0</span> confirmados</h3>
     <table id="tablaConfMiercoles"><tr><th>Alumno</th></tr></table>
+    <table id="tablaNoMiercoles" style="margin-top:8px;"><tr><th>No puede — Miércoles</th></tr></table>
   </div>
 
   <div class="view" id="view-adminMetricas">
@@ -456,23 +462,39 @@
     document.getElementById('fechaBtnLunes').textContent = '(' + lunesDate.toLocaleDateString('es-CL', opciones) + ')';
     document.getElementById('fechaBtnMiercoles').textContent = '(' + miercolesDate.toLocaleDateString('es-CL', opciones) + ')';
 
-    const { data: confirmadas } = await supabase.from('confirmaciones').select('dia').eq('alumno_id', currentAlumno.id).eq('semana', semana);
+    const { data: confirmadas } = await supabase.from('confirmaciones').select('dia,estado').eq('alumno_id', currentAlumno.id).eq('semana', semana);
     (confirmadas||[]).forEach(c=>{
-      const btnId = c.dia === 'Lunes' ? 'confLunes' : 'confMiercoles';
-      const btn = document.getElementById(btnId);
-      if(btn){ btn.textContent = '✓ Confirmado ' + c.dia; btn.disabled = true; btn.style.opacity = '0.7'; }
+      const confId = c.dia === 'Lunes' ? 'confLunes' : 'confMiercoles';
+      const noId = c.dia === 'Lunes' ? 'noLunes' : 'noMiercoles';
+      const confBtn = document.getElementById(confId);
+      const noBtn = document.getElementById(noId);
+      if(c.estado === 'no_puede'){
+        if(noBtn){ noBtn.textContent = '✓ No puedo ' + c.dia; noBtn.disabled = true; noBtn.style.opacity = '0.7'; }
+        if(confBtn){ confBtn.disabled = true; confBtn.style.opacity = '0.4'; }
+      } else {
+        if(confBtn){ confBtn.textContent = '✓ Confirmado ' + c.dia; confBtn.disabled = true; confBtn.style.opacity = '0.7'; }
+        if(noBtn){ noBtn.disabled = true; noBtn.style.opacity = '0.4'; }
+      }
     });
   }
 
-  window.confirmarDia = async function(dia){
+  window.confirmarDia = async function(dia, estado){
     const semana = getLunesDeEstaSemana();
-    const { error } = await supabase.from('confirmaciones').insert({alumno_id: currentAlumno.id, dia: dia, semana: semana});
+    const { error } = await supabase.from('confirmaciones').insert({alumno_id: currentAlumno.id, dia: dia, semana: semana, estado: estado});
     if(!error){
-      const btnId = dia === 'Lunes' ? 'confLunes' : 'confMiercoles';
-      const btn = document.getElementById(btnId);
-      btn.textContent = '✓ Confirmado ' + dia;
-      btn.disabled = true;
-      btn.style.opacity = '0.7';
+      const confId = dia === 'Lunes' ? 'confLunes' : 'confMiercoles';
+      const noId = dia === 'Lunes' ? 'noLunes' : 'noMiercoles';
+      const confBtn = document.getElementById(confId);
+      const noBtn = document.getElementById(noId);
+      if(estado === 'no_puede'){
+        noBtn.textContent = '✓ No puedo ' + dia;
+        noBtn.disabled = true; noBtn.style.opacity = '0.7';
+        confBtn.disabled = true; confBtn.style.opacity = '0.4';
+      } else {
+        confBtn.textContent = '✓ Confirmado ' + dia;
+        confBtn.disabled = true; confBtn.style.opacity = '0.7';
+        noBtn.disabled = true; noBtn.style.opacity = '0.4';
+      }
     }
   }
 
@@ -587,8 +609,10 @@
     const { data: confs } = await supabase.from('confirmaciones').select('*').eq('semana', semana);
     const { data: alumnos } = await supabase.from('alumnos').select('id,nombre');
 
-    const lunes = (confs||[]).filter(c=>c.dia==='Lunes');
-    const miercoles = (confs||[]).filter(c=>c.dia==='Miércoles');
+    const lunes = (confs||[]).filter(c=>c.dia==='Lunes' && c.estado!=='no_puede');
+    const noLunes = (confs||[]).filter(c=>c.dia==='Lunes' && c.estado==='no_puede');
+    const miercoles = (confs||[]).filter(c=>c.dia==='Miércoles' && c.estado!=='no_puede');
+    const noMiercoles = (confs||[]).filter(c=>c.dia==='Miércoles' && c.estado==='no_puede');
 
     document.getElementById('countLunes').textContent = lunes.length;
     document.getElementById('countMiercoles').textContent = miercoles.length;
@@ -607,11 +631,25 @@
       tablaL.innerHTML += '<tr><td>'+(a?a.nombre:'ID '+c.alumno_id)+'</td></tr>';
     });
 
+    const tablaNL = document.getElementById('tablaNoLunes');
+    tablaNL.innerHTML = '<tr><th>No puede — Lunes</th></tr>';
+    noLunes.forEach(c=>{
+      const a = (alumnos||[]).find(x=>x.id===c.alumno_id);
+      tablaNL.innerHTML += '<tr><td>'+(a?a.nombre:'ID '+c.alumno_id)+'</td></tr>';
+    });
+
     const tablaM = document.getElementById('tablaConfMiercoles');
     tablaM.innerHTML = '<tr><th>Alumno</th></tr>';
     miercoles.forEach(c=>{
       const a = (alumnos||[]).find(x=>x.id===c.alumno_id);
       tablaM.innerHTML += '<tr><td>'+(a?a.nombre:'ID '+c.alumno_id)+'</td></tr>';
+    });
+
+    const tablaNM = document.getElementById('tablaNoMiercoles');
+    tablaNM.innerHTML = '<tr><th>No puede — Miércoles</th></tr>';
+    noMiercoles.forEach(c=>{
+      const a = (alumnos||[]).find(x=>x.id===c.alumno_id);
+      tablaNM.innerHTML += '<tr><td>'+(a?a.nombre:'ID '+c.alumno_id)+'</td></tr>';
     });
   }
 
